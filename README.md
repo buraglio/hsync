@@ -1,6 +1,6 @@
 # hsync
 
-**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It will cirrently sync HEadScale node IP addresses to [Cloudflare](https://www.cloudflare.com/) DNS records. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple Cloudflare zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
+**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It syncs Headscale node IP addresses to [Cloudflare](https://www.cloudflare.com/) DNS records. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple Cloudflare zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
 
 ## Features
 
@@ -118,6 +118,7 @@ Fetches all Headscale nodes and syncs them to Cloudflare DNS. Exits when done.
 | `--user <name>` | — | Only sync nodes owned by this Headscale user |
 | `--managed-tag <tag>` | `managed:hsync` | Tag stamped on every managed record; prune filter |
 | `--tag <key:value>` | — | Extra tag (repeatable: `--tag env:prod --tag region:us`) |
+| `--disable-tags` | false | Omit tags from API calls (required for free/non-Enterprise Cloudflare zones) |
 | `--comment <text>` | `Managed by hsync` | Comment written to each DNS record |
 | `--config <path>` | — | JSON or YAML config file |
 
@@ -272,7 +273,9 @@ In this example:
 
 ## Tags
 
-Tags are key:value strings stored on Cloudflare DNS records (Cloudflare API feature). hsync uses tags for two purposes:
+> **Cloudflare plan requirement:** DNS record tags are only available on paid Cloudflare plans (Business/Enterprise). Free zone users must set `--disable-tags` (or `disable_tags: true` in the config file) to avoid API error 9300. When tags are disabled, `--prune` still works for records that already carry a managed tag from a prior run, but newly created records will not be tag-tracked.
+
+Tags are key:value strings stored on Cloudflare DNS records. hsync uses tags for two purposes:
 
 ### Managed-tag (safe pruning)
 
@@ -516,6 +519,7 @@ go build \
 | `online_only` | bool | Skip offline nodes |
 | `managed_tag` | string | Tag identifying managed records |
 | `tags` | []string | Global extra tags |
+| `disable_tags` | bool | Omit tags from API calls (required for free/non-Enterprise zones) |
 | `comment` | string | Record comment text |
 | `zones` | []ZoneTarget | Multi-zone config (overrides single-zone fields) |
 
