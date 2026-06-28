@@ -1,6 +1,6 @@
 # hsync
 
-**hsync** syncs [Headscale](https://github.com/juanfont/headscale) node IP addresses to [Cloudflare](https://www.cloudflare.com/) DNS records. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple Cloudflare zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
+**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It will cirrently sync HEadScale node IP addresses to [Cloudflare](https://www.cloudflare.com/) DNS records. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple Cloudflare zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
 
 ## Features
 
