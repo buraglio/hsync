@@ -140,32 +140,38 @@ func fetchCFRecords(cfg *Config, token, zoneID, recordType string) ([]Cloudflare
 }
 
 func createCFRecord(cfg *Config, token, zoneID, name, ip, recType string, tags []string) error {
+	payload := map[string]interface{}{
+		"type":    recType,
+		"name":    name,
+		"content": ip,
+		"ttl":     cfg.TTL,
+		"proxied": cfg.Proxied,
+		"comment": cfg.Comment,
+	}
+	if !cfg.DisableTags && len(tags) > 0 {
+		payload["tags"] = tags
+	}
 	_, err := cfDo(cfg, token, "POST",
 		fmt.Sprintf("/zones/%s/dns_records", zoneID),
-		map[string]interface{}{
-			"type":    recType,
-			"name":    name,
-			"content": ip,
-			"ttl":     cfg.TTL,
-			"proxied": cfg.Proxied,
-			"comment": cfg.Comment,
-			"tags":    tags,
-		})
+		payload)
 	return err
 }
 
 func updateCFRecord(cfg *Config, token, zoneID, id, name, ip, recType string, tags []string) error {
+	payload := map[string]interface{}{
+		"type":    recType,
+		"name":    name,
+		"content": ip,
+		"ttl":     cfg.TTL,
+		"proxied": cfg.Proxied,
+		"comment": cfg.Comment,
+	}
+	if !cfg.DisableTags && len(tags) > 0 {
+		payload["tags"] = tags
+	}
 	_, err := cfDo(cfg, token, "PATCH",
 		fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, id),
-		map[string]interface{}{
-			"type":    recType,
-			"name":    name,
-			"content": ip,
-			"ttl":     cfg.TTL,
-			"proxied": cfg.Proxied,
-			"comment": cfg.Comment,
-			"tags":    tags,
-		})
+		payload)
 	return err
 }
 

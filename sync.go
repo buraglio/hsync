@@ -155,7 +155,7 @@ func syncRecordType(cfg *Config, nodes []HeadscaleNode, recType string, target Z
 		}
 
 		ipChanged := rec.Content != ip
-		tagsChanged := !tagsMatch(rec.Tags, wantedTags)
+		tagsChanged := !cfg.DisableTags && !tagsMatch(rec.Tags, wantedTags)
 		if ipChanged || tagsChanged {
 			if ipChanged {
 				logInfo("  UPDATE %s %s  %s -> %s", recType, fqdn, rec.Content, ip)
