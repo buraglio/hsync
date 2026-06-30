@@ -1,17 +1,20 @@
 # hsync
 
-**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It syncs Headscale node IP addresses to [Cloudflare](https://www.cloudflare.com/) DNS records. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple Cloudflare zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
+**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It syncs Headscale node IP addresses to DNS — either [Cloudflare](https://www.cloudflare.com/) or a BIND-format zone file. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
 
 ## Features
 
-- Sync Headscale node IPv4 (`A`) and/or IPv6 (`AAAA`) addresses to Cloudflare DNS
-- Create, update, and optionally prune records — only records carrying a managed tag are ever deleted
-- **Multiple Cloudflare zones** — map different Headscale users to different zones and domains via a config file
-- **Tag management** — stamp a configurable managed tag on every record; add arbitrary extra tags per run or per zone
-- **Three run modes** — one-shot (`sync`), polling daemon (`watch`), or HTTP daemon (`serve`)
+- Sync Headscale node IPv4 (`A`) and/or IPv6 (`AAAA`) addresses to DNS
+- **Two output backends** — sync to Cloudflare DNS or generate a BIND-format zone file (full zone with SOA/NS, or a records-only fragment)
+- Create, update, and optionally prune records — only records carrying a managed tag are ever deleted (Cloudflare mode)
+- **Multiple zones** — map different Headscale users to different zones and domains via a config file
+- **Tag management** — stamp a configurable managed tag on every record; add arbitrary extra tags per run or per zone (Cloudflare mode)
+- **DNS record naming** — uses the Headscale-configured name (`givenName`) by default; `--use-hostname` falls back to the machine hostname
+- **BIND zone file** — one-shot `zonefile` command or continuous output via `sync`/`watch`/`serve`; optional post-write reload command (e.g. `rndc reload`)
+- **Four run modes** — one-shot (`sync`), zone file generator (`zonefile`), polling daemon (`watch`), or HTTP daemon (`serve`)
 - **Webhook receiver** — `serve` triggers an immediate sync on `POST /webhook`, with optional bearer-token authentication
 - **Prometheus metrics** — `/metrics` endpoint with sync counters, durations, node counts, and an `hsync_up` gauge
-- **Dry-run mode** — preview every planned change without touching Cloudflare
+- **Dry-run mode** — preview every planned change without writing anything
 - **Retry with backoff** — Cloudflare API calls are retried on network errors, HTTP 429, and HTTP 5xx (3 attempts, 1 s / 2 s backoff)
 - **Config file** — JSON or YAML; all flags can be set there; CLI flags always win
 - **Compiled-in defaults** — embed URLs and API keys at build time with `-ldflags` for zero-config deployments
@@ -75,6 +78,22 @@ hsync watch --config /etc/hsync/config.json --interval 5m
 
 # HTTP daemon: webhook-triggered + periodic fallback + metrics
 hsync serve --config /etc/hsync/config.json --interval 5m --listen :8080
+
+# Generate a BIND zone file (stdout)
+hsync zonefile \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX \
+  --domain ts.example.com \
+  --bind-ns ns1.ts.example.com.
+
+# Write zone file and reload BIND
+hsync zonefile \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX \
+  --domain ts.example.com \
+  --bind-ns ns1.ts.example.com. \
+  --bind-zone-file /etc/bind/ts.example.com.zone \
+  --bind-reload-cmd "rndc reload ts.example.com"
 ```
 
 ## Commands
@@ -120,7 +139,65 @@ Fetches all Headscale nodes and syncs them to Cloudflare DNS. Exits when done.
 | `--tag <key:value>` | — | Extra tag (repeatable: `--tag env:prod --tag region:us`) |
 | `--disable-tags` | false | Omit tags from API calls (required for free/non-Enterprise Cloudflare zones) |
 | `--comment <text>` | `Managed by hsync` | Comment written to each DNS record |
+| `--use-hostname` | false | Use the machine hostname instead of the Headscale-configured name for DNS records |
 | `--config <path>` | — | JSON or YAML config file |
+| `--bind-zone-file <path>` | — | Write BIND zone file here instead of syncing to Cloudflare; stdout if omitted |
+| `--bind-zone-dir <dir>` | — | Write one BIND zone file per zone to this directory (`<dir>/<domain>.zone`) |
+| `--bind-ns <name>` | — | NS record for generated zone (repeatable) |
+| `--bind-soa-email <email>` | — | SOA RNAME (default: `hostmaster.<domain>.`) |
+| `--bind-reload-cmd <cmd>` | — | Shell command run after each zone file write |
+| `--bind-fragment` | false | Write only A/AAAA records — no SOA/NS header |
+
+---
+
+### `zonefile` — BIND zone file generator
+
+```
+hsync zonefile [flags]
+```
+
+Fetches all Headscale nodes and writes a BIND-format zone file. Cloudflare credentials are not required. Default output is stdout, making it easy to pipe or redirect.
+
+Accepts the same flags as `sync` (for node filtering, TTL, `--use-hostname`, etc.) plus the `--bind-*` flags above.
+
+```sh
+# Print zone to stdout
+hsync zonefile --domain ts.example.com --bind-ns ns1.ts.example.com.
+
+# Write to file and reload BIND
+hsync zonefile \
+  --domain ts.example.com \
+  --bind-ns ns1.ts.example.com. \
+  --bind-zone-file /etc/bind/ts.example.com.zone \
+  --bind-reload-cmd "rndc reload ts.example.com"
+
+# Records-only fragment (no SOA/NS), for $INCLUDE in an existing zone
+hsync zonefile --domain ts.example.com --bind-fragment > /etc/bind/headscale-nodes.inc
+```
+
+**Zone file format:**
+
+```
+; Generated by hsync 0.2.0 — 2026-06-30T12:00:00Z
+$ORIGIN ts.example.com.
+$TTL 60
+
+@  IN SOA  ns1.ts.example.com. hostmaster.ts.example.com. (
+               1751313600 ; serial (Unix timestamp)
+               3600       ; refresh
+               900        ; retry
+               604800     ; expire
+               60         ; minimum TTL
+           )
+
+@  IN NS   ns1.ts.example.com.
+
+; Node records
+foo  IN AAAA  fd7a:115c:a1e0::1
+bar  IN AAAA  fd7a:115c:a1e0::2
+```
+
+**Multi-zone:** when a `zones` config file is used, each zone writes to `<bind-zone-dir>/<domain>.zone`. The `--bind-zone-file` flag is ignored in multi-zone mode (ambiguous); use `--bind-zone-dir` instead.
 
 ---
 
@@ -268,6 +345,26 @@ When `zones` is present, all zone-level fields (`cf_api_token`, `cf_zone_id`, `d
 In this example:
 - All nodes are synced to `ts.example.com` via Zone A
 - Only nodes owned by `alice` or `bob` are also synced to `ops.ts.example.com` via Zone B, and those records additionally get the `team:ops` tag
+
+---
+
+## DNS Record Naming
+
+By default hsync uses the **Headscale-configured name** (`givenName`) for each node — the name an admin has set via `headscale nodes rename`. If no configured name is set, it falls back to the machine hostname (`name`).
+
+To always use the machine hostname instead:
+
+```sh
+hsync sync --use-hostname ...
+```
+
+Or in a config file:
+
+```yaml
+use_hostname: true
+```
+
+This applies to both Cloudflare sync and BIND zone file output.
 
 ---
 
@@ -520,8 +617,15 @@ go build \
 | `managed_tag` | string | Tag identifying managed records |
 | `tags` | []string | Global extra tags |
 | `disable_tags` | bool | Omit tags from API calls (required for free/non-Enterprise zones) |
+| `use_hostname` | bool | Use machine hostname instead of Headscale-configured name for DNS records |
 | `comment` | string | Record comment text |
 | `zones` | []ZoneTarget | Multi-zone config (overrides single-zone fields) |
+| `bind_zone_file` | string | BIND zone output file path (single-zone; stdout if empty) |
+| `bind_zone_dir` | string | Directory for per-zone BIND files (`<dir>/<domain>.zone`) |
+| `bind_ns` | []string | NS records for generated zone |
+| `bind_soa_email` | string | SOA RNAME (default: `hostmaster.<domain>.`) |
+| `bind_reload_cmd` | string | Shell command run after each zone write |
+| `bind_fragment` | bool | Write only A/AAAA records, no SOA/NS header |
 
 **ZoneTarget fields:**
 

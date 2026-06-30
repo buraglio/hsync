@@ -60,11 +60,12 @@ Usage:
   hsync <command> [flags]
 
 Commands:
-  list    List all Headscale nodes with their IP addresses
-  sync    Sync Headscale nodes to Cloudflare DNS records (one-shot)
-  watch   Sync continuously on a repeating interval (no HTTP server)
-  serve   HTTP daemon: POST /webhook triggers sync, GET /metrics /healthz /status
-  version Print version information
+  list      List all Headscale nodes with their IP addresses
+  sync      Sync Headscale nodes to Cloudflare DNS records (one-shot)
+  zonefile  Generate a BIND-format zone file from Headscale nodes (one-shot)
+  watch     Sync continuously on a repeating interval (no HTTP server)
+  serve     HTTP daemon: POST /webhook triggers sync, GET /metrics /healthz /status
+  version   Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
 
