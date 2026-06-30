@@ -97,6 +97,16 @@ func filterNodes(nodes []HeadscaleNode, onlineOnly bool, user string) []Headscal
 	return out
 }
 
+// nodeDNSName returns the name used for DNS records. By default it prefers
+// the Headscale-configured GivenName; pass useHostname=true to always use
+// the machine hostname (Name) instead.
+func nodeDNSName(n HeadscaleNode, useHostname bool) string {
+	if !useHostname && n.GivenName != "" {
+		return n.GivenName
+	}
+	return n.Name
+}
+
 // extractIPs splits a mixed IP list into the first v4 and first v6 address.
 func extractIPs(ips []string) (v4, v6 string) {
 	for _, ip := range ips {

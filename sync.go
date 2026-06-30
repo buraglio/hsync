@@ -136,7 +136,7 @@ func syncRecordType(cfg *Config, nodes []HeadscaleNode, recType string, target Z
 			continue
 		}
 
-		fqdn := node.Name + "." + target.Domain
+		fqdn := nodeDNSName(node, cfg.UseHostname) + "." + target.Domain
 		headscaleFQDNs[fqdn] = true
 
 		rec, exists := byName[fqdn]

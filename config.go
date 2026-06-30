@@ -47,6 +47,7 @@ type FileConfig struct {
 	OnlineOnly      bool         `json:"online_only"       yaml:"online_only"`
 	DryRun          bool         `json:"dry_run"           yaml:"dry_run"`
 	DisableTags     bool         `json:"disable_tags"      yaml:"disable_tags"`
+	UseHostname     bool         `json:"use_hostname"      yaml:"use_hostname"`
 	// Single-zone shorthand (for simple setups without a zones array)
 	CFAPIToken string `json:"cf_api_token" yaml:"cf_api_token"`
 	CFZoneID   string `json:"cf_zone_id"   yaml:"cf_zone_id"`
@@ -80,6 +81,7 @@ type Config struct {
 	Comment    string
 	// Runtime
 	DisableTags bool
+	UseHostname bool
 	Verbose     bool
 	JSONOutput  bool
 	// Watch/Serve
@@ -180,6 +182,7 @@ func applyFileConfig(cfg *Config, fc *FileConfig, explicit map[string]bool) {
 	bl("ipv4", &cfg.SyncIPv4, fc.SyncIPv4)
 	bl("online-only", &cfg.OnlineOnly, fc.OnlineOnly)
 	bl("disable-tags", &cfg.DisableTags, fc.DisableTags)
+	bl("use-hostname", &cfg.UseHostname, fc.UseHostname)
 	if !explicit["ipv6"] && fc.SyncIPv6 != nil {
 		cfg.SyncIPv6 = *fc.SyncIPv6
 	}
@@ -226,6 +229,7 @@ func addSyncFlags(fs *flag.FlagSet, cfg *Config) {
 	fs.StringVar(&cfg.ManagedTag, "managed-tag", "managed:hsync", "Tag stamped on every managed record; prune only removes records with this tag")
 	fs.Var(&cfg.Tags, "tag", "Extra tag to apply to every record (key:value, repeatable)")
 	fs.BoolVar(&cfg.DisableTags, "disable-tags", false, "Omit tags from Cloudflare API calls (required for free/non-Enterprise zones)")
+	fs.BoolVar(&cfg.UseHostname, "use-hostname", false, "Use the machine hostname instead of the Headscale-configured name for DNS records")
 }
 
 // parseAndMerge parses args, then loads and merges any config file.
