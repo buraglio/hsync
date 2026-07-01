@@ -46,6 +46,8 @@ func main() {
 		runRename(os.Args[2:])
 	case "node-tag":
 		runNodeTag(os.Args[2:])
+	case "users":
+		runUsers(os.Args[2:])
 	case "version", "--version", "-version":
 		fmt.Printf("hsync %s\n", version)
 	case "help", "--help", "-help", "-h":
@@ -71,6 +73,7 @@ Commands:
   serve     HTTP daemon: POST /webhook triggers sync, GET /metrics /healthz /status
   rename    Rename a Headscale node (--node <current-name> --new-name <name>)
   node-tag  Set ACL tags on a Headscale node (--node <name> --tag tag:prod)
+  users     Manage Headscale users (sub-commands: list, create, delete, rename)
   version   Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
