@@ -171,7 +171,7 @@ func runAPIKeyCreate(args []string) {
 		mustEncodeJSON(os.Stdout, map[string]string{"apiKey": key})
 		return
 	}
-	logInfo("Created API key (shown once — store it securely:")
+	logInfo("Created API key (shown once — store it securely):")
 	fmt.Println(key)
 }
 
