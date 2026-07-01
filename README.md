@@ -23,6 +23,10 @@
 - **User management** — list, create, delete, and rename Headscale users
 - **Pre-auth key management** — list, create (reusable/ephemeral, with expiration), and expire pre-auth keys
 - **Route management** — list, enable, disable, and delete subnet routes
+- **Node lifecycle** — show detailed node info, delete nodes, force re-authentication, or reassign nodes to a different user
+- **API key management** — list, create, and expire Headscale API keys without the headscale CLI
+- **ACL policy management** — read and write the Headscale HuJSON ACL policy via API
+- **Shell completions** — tab-completion for bash, zsh, and fish covering all commands and sub-commands
 
 ## Installation
 
@@ -87,6 +91,32 @@ hsync preauthkey create \
 hsync routes list \
   --headscale-url https://hs.example.com \
   --headscale-key hskey-api-XXXXXXXX
+
+# Show detailed info for a node
+hsync node show --node my-laptop \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX
+
+# Delete a node
+hsync node delete --node old-laptop \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX
+
+# List API keys
+hsync apikey list \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX
+
+# Get current ACL policy
+hsync policy get \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX
+
+# Install bash completions (add to ~/.bashrc)
+eval "$(hsync completion bash)"
+
+# Install fish completions (permanent)
+hsync completion fish > ~/.config/fish/completions/hsync.fish
 
 # One-shot sync (AAAA records only, dry run first)
 hsync sync \
@@ -348,6 +378,157 @@ hsync routes delete --route-id 5
 | Flag | Description |
 |---|---|
 | `--route-id <id>` | Route ID to delete |
+
+---
+
+### `node` — node lifecycle management
+
+```
+hsync node <show|delete|expire|move> [flags]
+```
+
+#### `node show`
+
+Prints detailed information for a single node: ID, name, user, online status, last seen, and IP addresses.
+
+```sh
+hsync node show --node my-laptop
+hsync node show --node my-laptop --json
+```
+
+| Flag | Description |
+|---|---|
+| `--node <name>` | Node name (givenName or hostname) |
+
+#### `node delete`
+
+Removes a node from the tailnet permanently.
+
+```sh
+hsync node delete --node old-laptop
+```
+
+| Flag | Description |
+|---|---|
+| `--node <name>` | Node to delete |
+
+#### `node expire`
+
+Forces a node to re-authenticate on next connection.
+
+```sh
+hsync node expire --node my-laptop
+```
+
+| Flag | Description |
+|---|---|
+| `--node <name>` | Node to expire |
+
+#### `node move`
+
+Reassigns a node to a different Headscale user.
+
+```sh
+hsync node move --node my-laptop --user bob
+```
+
+| Flag | Description |
+|---|---|
+| `--node <name>` | Node to move |
+| `--user <name>` | Destination Headscale username |
+
+---
+
+### `apikey` — manage Headscale API keys
+
+```
+hsync apikey <list|create|expire> [flags]
+```
+
+#### `apikey list`
+
+```sh
+hsync apikey list
+hsync apikey list --json
+```
+
+Output columns: ID, PREFIX, EXPIRATION, CREATED
+
+#### `apikey create`
+
+Creates a new API key. The full key is printed once — store it immediately.
+
+```sh
+hsync apikey create
+hsync apikey create --expiration 720h
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--expiration <duration>` | 0 (server default) | Key lifetime (e.g. `24h`, `720h`) |
+
+#### `apikey expire`
+
+Immediately invalidates an API key by prefix.
+
+```sh
+hsync apikey expire --prefix hskey-api-abc123
+```
+
+| Flag | Description |
+|---|---|
+| `--prefix <prefix>` | Key prefix to expire |
+
+---
+
+### `policy` — manage ACL policy
+
+```
+hsync policy <get|set> [flags]
+```
+
+#### `policy get`
+
+Prints the current HuJSON ACL policy to stdout.
+
+```sh
+hsync policy get
+hsync policy get > policy.hujson
+```
+
+#### `policy set`
+
+Replaces the ACL policy from a file or stdin. Use with care — an invalid policy can disrupt network access.
+
+```sh
+hsync policy set --file policy.hujson
+cat policy.hujson | hsync policy set --file -
+```
+
+| Flag | Description |
+|---|---|
+| `--file <path>` | Path to HuJSON policy file (use `-` for stdin) |
+
+---
+
+### `completion` — shell tab completion
+
+```
+hsync completion <bash|zsh|fish>
+```
+
+Outputs a shell completion script enabling tab-completion for all hsync commands and sub-commands.
+
+```sh
+# bash (add to ~/.bashrc)
+eval "$(hsync completion bash)"
+
+# zsh (add to ~/.zshrc)
+eval "$(hsync completion zsh)"
+
+# fish (permanent install)
+hsync completion fish > ~/.config/fish/completions/hsync.fish
+```
 
 ---
 
