@@ -158,6 +158,74 @@ hsync zonefile \
   --bind-reload-cmd "rndc reload ts.example.com"
 ```
 
+## Architecture
+
+The diagram below shows how the source files are organized and how data flows through the tool for each major operation.
+
+```mermaid
+flowchart TD
+    CLI(["**User**\nCLI flags · env vars · config file"])
+
+    CLI --> MAIN
+
+    subgraph entry["Entry & Configuration"]
+        direction LR
+        MAIN["**main.go**\nCommand dispatcher\nShared helpers: require · must · logInfo\nBuilt-in runners: list · rename · node-tag"]
+        CONFIG["**config.go**\nFlag parsing · env lookup\nJSON / YAML config file merge\nConfig · FileConfig · ZoneTarget"]
+        MAIN <-.->|"Config struct\npassed to every command"| CONFIG
+    end
+
+    MAIN -->|"sync · watch\nzonefile"| SYNC_GRP
+    MAIN -->|serve| DAEMON_GRP
+    MAIN -->|"node · users\npreauthkey · routes\napikey · policy"| MGMT_GRP
+    MAIN -->|completion| COMP["**completion.go**\nbash · zsh · fish\ncompletion scripts → stdout"]
+
+    subgraph SYNC_GRP["DNS Synchronization"]
+        SYNC["**sync.go**\ndoSync · runSync · runWatch · runOnce\nSyncStats · BIND zone file output"]
+        CF["**cloudflare.go**\nFetch · Create · Update · Delete records\nTag tracking · Prune · Retry with backoff"]
+        SYNC -->|"A / AAAA records\nper ZoneTarget"| CF
+    end
+
+    subgraph DAEMON_GRP["HTTP Daemon"]
+        SERVE["**serve.go**\nPOST /webhook → enqueue sync\nGET /healthz · /status\nGraceful shutdown on SIGTERM"]
+        METRICS["**metrics.go**\nGET /metrics\nPrometheus text format\nSync counters · duration · node gauge"]
+        SERVE --- METRICS
+    end
+
+    SERVE -->|"dedup trigger\nchannel"| SYNC
+
+    subgraph MGMT_GRP["Headscale Management"]
+        NODE["**node.go**\nshow · delete · expire · move"]
+        USERS["**users.go**\nlist · create · delete · rename"]
+        PAK["**preauthkey.go**\nlist · create · expire"]
+        ROUTES["**routes.go**\nlist · enable · disable · delete"]
+        APIKEY["**apikey.go**\nlist · create · expire"]
+        POLICY["**policy.go**\nget · set"]
+    end
+
+    subgraph HS_LAYER["Shared Headscale Client  (headscale.go)"]
+        HS_CORE["fetchHeadscaleNodes · filterNodes\nfindNodeByName · extractIPs\nrenameNode · setNodeTags"]
+    end
+
+    SYNC_GRP --> HS_LAYER
+    MGMT_GRP --> HS_LAYER
+
+    HS_LAYER --> HS_SERVER[("**Headscale Server**\n/api/v1/node\n/api/v1/user\n/api/v1/preauthkey\n/api/v1/routes\n/api/v1/apikey\n/api/v1/policy")]
+
+    CF --> CF_API[("**Cloudflare API**\napi.cloudflare.com/client/v4\nDNS record CRUD")]
+
+    SYNC -->|"--bind-zone-file\nor stdout"| BIND_OUT[("BIND Zone File\nSOA · NS · A · AAAA")]
+```
+
+**Key data flows:**
+
+- **DNS sync** (`sync` / `watch` / `zonefile`): `config.go` builds the `Config`, `sync.go` calls `headscale.go` to fetch nodes, then pushes records to `cloudflare.go` (Cloudflare) or writes a BIND zone file directly.
+- **HTTP daemon** (`serve`): `serve.go` wraps the sync path behind a webhook endpoint; `metrics.go` exposes a `/metrics` endpoint populated by every `runOnce` call.
+- **Management commands** (`node`, `users`, `preauthkey`, `routes`, `apikey`, `policy`): Each file implements a sub-command dispatcher and its own API functions, sharing the node-lookup helpers in `headscale.go`.
+- **Shell completions** (`completion`): Pure string output — no API calls, no config required.
+
+---
+
 ## Commands
 
 ### `list` — inspect Headscale nodes
