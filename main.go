@@ -42,6 +42,8 @@ func main() {
 		runWatch(os.Args[2:])
 	case "serve":
 		runServe(os.Args[2:])
+	case "rename":
+		runRename(os.Args[2:])
 	case "version", "--version", "-version":
 		fmt.Printf("hsync %s\n", version)
 	case "help", "--help", "-help", "-h":
@@ -65,6 +67,7 @@ Commands:
   zonefile  Generate a BIND-format zone file from Headscale nodes (one-shot)
   watch     Sync continuously on a repeating interval (no HTTP server)
   serve     HTTP daemon: POST /webhook triggers sync, GET /metrics /healthz /status
+  rename    Rename a Headscale node (--node <current-name> --new-name <name>)
   version   Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
@@ -159,6 +162,35 @@ func runList(args []string) {
 		}
 		fmt.Fprintln(w, line)
 	}
+}
+
+// ── rename command ────────────────────────────────────────────────────────────
+
+func runRename(args []string) {
+	fs, cfg := newFlagSet("rename")
+	node := fs.String("node", "", "Current node name (givenName or hostname)")
+	newName := fs.String("new-name", "", "New name to assign")
+	parseAndMerge(fs, cfg, args)
+
+	require(cfg.HeadscaleURL != "", "headscale-url is required")
+	require(cfg.HeadscaleAPIKey != "", "headscale-key is required")
+	require(*node != "", "--node is required")
+	require(*newName != "", "--new-name is required")
+
+	nodes, err := fetchHeadscaleNodes(cfg)
+	must(err, "fetch nodes")
+
+	n, err := findNodeByName(nodes, *node)
+	must(err, "find node")
+
+	updated, err := renameNode(cfg, n.ID, *newName)
+	must(err, "rename node")
+
+	if cfg.JSONOutput {
+		mustEncodeJSON(os.Stdout, updated)
+		return
+	}
+	logInfo("Renamed node %q (id %s) → %q", *node, n.ID, updated.GivenName)
 }
 
 // ── shared helpers ────────────────────────────────────────────────────────────

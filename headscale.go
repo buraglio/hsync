@@ -122,3 +122,45 @@ func extractIPs(ips []string) (v4, v6 string) {
 	}
 	return
 }
+
+// findNodeByName returns the first node whose GivenName or Name matches.
+func findNodeByName(nodes []HeadscaleNode, name string) (HeadscaleNode, error) {
+	for _, n := range nodes {
+		if n.GivenName == name || n.Name == name {
+			return n, nil
+		}
+	}
+	return HeadscaleNode{}, fmt.Errorf("no node found with name %q", name)
+}
+
+type headscaleNodeResponse struct {
+	Node HeadscaleNode `json:"node"`
+}
+
+// renameNode renames a Headscale node via POST /api/v1/node/{id}/rename/{newName}.
+func renameNode(cfg *Config, nodeID, newName string) (HeadscaleNode, error) {
+	url := fmt.Sprintf("%s/api/v1/node/%s/rename/%s", cfg.HeadscaleURL, nodeID, newName)
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return HeadscaleNode{}, err
+	}
+	req.Header.Set("Authorization", "Bearer "+cfg.HeadscaleAPIKey)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return HeadscaleNode{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return HeadscaleNode{}, fmt.Errorf("Headscale API HTTP %d: %s", resp.StatusCode, b)
+	}
+	var result headscaleNodeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return HeadscaleNode{}, fmt.Errorf("decode rename response: %w", err)
+	}
+	return result.Node, nil
+}
