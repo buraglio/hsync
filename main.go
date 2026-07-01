@@ -54,6 +54,8 @@ func main() {
 		runRoutes(os.Args[2:])
 	case "node":
 		runNode(os.Args[2:])
+	case "apikey":
+		runAPIKey(os.Args[2:])
 	case "version", "--version", "-version":
 		fmt.Printf("hsync %s\n", version)
 	case "help", "--help", "-help", "-h":
@@ -83,6 +85,7 @@ Commands:
   preauthkey  Manage Headscale pre-auth keys (sub-commands: list, create, expire)
   routes      Manage Headscale subnet routes (sub-commands: list, enable, disable, delete)
   node        Manage Headscale nodes (sub-commands: show, delete, expire, move)
+  apikey      Manage Headscale API keys (sub-commands: list, create, expire)
   version     Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
