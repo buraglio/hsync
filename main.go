@@ -44,6 +44,8 @@ func main() {
 		runServe(os.Args[2:])
 	case "rename":
 		runRename(os.Args[2:])
+	case "node-tag":
+		runNodeTag(os.Args[2:])
 	case "version", "--version", "-version":
 		fmt.Printf("hsync %s\n", version)
 	case "help", "--help", "-help", "-h":
@@ -68,6 +70,7 @@ Commands:
   watch     Sync continuously on a repeating interval (no HTTP server)
   serve     HTTP daemon: POST /webhook triggers sync, GET /metrics /healthz /status
   rename    Rename a Headscale node (--node <current-name> --new-name <name>)
+  node-tag  Set ACL tags on a Headscale node (--node <name> --tag tag:prod)
   version   Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
@@ -191,6 +194,48 @@ func runRename(args []string) {
 		return
 	}
 	logInfo("Renamed node %q (id %s) → %q", *node, n.ID, updated.GivenName)
+}
+
+// ── node-tag command ──────────────────────────────────────────────────────────
+
+func runNodeTag(args []string) {
+	fs, cfg := newFlagSet("node-tag")
+	node := fs.String("node", "", "Node name (givenName or hostname) to tag")
+	var tags tagList
+	fs.Var(&tags, "tag", "ACL tag to set (e.g. tag:prod); repeatable. Replaces all existing tags.")
+	clear := fs.Bool("clear", false, "Remove all ACL tags from the node")
+	parseAndMerge(fs, cfg, args)
+
+	require(cfg.HeadscaleURL != "", "headscale-url is required")
+	require(cfg.HeadscaleAPIKey != "", "headscale-key is required")
+	require(*node != "", "--node is required")
+	if !*clear {
+		require(len(tags) > 0, "at least one --tag is required (or use --clear)")
+	}
+
+	nodes, err := fetchHeadscaleNodes(cfg)
+	must(err, "fetch nodes")
+
+	n, err := findNodeByName(nodes, *node)
+	must(err, "find node")
+
+	applyTags := []string(tags)
+	if *clear {
+		applyTags = []string{}
+	}
+
+	updated, err := setNodeTags(cfg, n.ID, applyTags)
+	must(err, "set tags")
+
+	if cfg.JSONOutput {
+		mustEncodeJSON(os.Stdout, updated)
+		return
+	}
+	if *clear {
+		logInfo("Cleared all ACL tags from node %q (id %s)", *node, n.ID)
+	} else {
+		logInfo("Set ACL tags on node %q (id %s): %v", *node, n.ID, applyTags)
+	}
 }
 
 // ── shared helpers ────────────────────────────────────────────────────────────

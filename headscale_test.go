@@ -42,6 +42,38 @@ func TestFindNodeByName_NotFound(t *testing.T) {
 	}
 }
 
+func TestSetNodeTags(t *testing.T) {
+	want := HeadscaleNode{ID: "3", Name: "gw", GivenName: "gateway"}
+	var gotTags []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("got method %q, want PUT", r.Method)
+		}
+		if r.URL.Path != "/api/v1/node/3/tags" {
+			t.Errorf("got path %q", r.URL.Path)
+		}
+		var body struct {
+			Tags []string `json:"tags"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		gotTags = body.Tags
+		json.NewEncoder(w).Encode(map[string]HeadscaleNode{"node": want})
+	}))
+	defer srv.Close()
+
+	cfg := &Config{HeadscaleURL: srv.URL, HeadscaleAPIKey: "test-key"}
+	got, err := setNodeTags(cfg, "3", []string{"tag:prod", "tag:web"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.ID != want.ID {
+		t.Errorf("got ID %q, want %q", got.ID, want.ID)
+	}
+	if len(gotTags) != 2 || gotTags[0] != "tag:prod" {
+		t.Errorf("unexpected tags sent: %v", gotTags)
+	}
+}
+
 func TestRenameNode(t *testing.T) {
 	want := HeadscaleNode{ID: "1", Name: "laptop", GivenName: "new-name"}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
