@@ -60,7 +60,7 @@ func TestCreatePreAuthKey(t *testing.T) {
 func TestExpirePreAuthKey(t *testing.T) {
 	var gotBody map[string]string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodDelete || r.URL.Path != "/api/v1/preauthkey" {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/preauthkey/expire" {
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 		json.NewDecoder(r.Body).Decode(&gotBody)

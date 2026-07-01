@@ -101,10 +101,10 @@ func createPreAuthKey(cfg *Config, user string, reusable, ephemeral bool, expira
 	return result.PreAuthKey, nil
 }
 
-// expirePreAuthKey expires (invalidates) a pre-auth key via DELETE /api/v1/preauthkey.
+// expirePreAuthKey expires (invalidates) a pre-auth key via POST /api/v1/preauthkey/expire.
 func expirePreAuthKey(cfg *Config, user, key string) error {
 	body, _ := json.Marshal(map[string]string{"user": user, "key": key})
-	req, err := http.NewRequest(http.MethodDelete, cfg.HeadscaleURL+"/api/v1/preauthkey", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, cfg.HeadscaleURL+"/api/v1/preauthkey/expire", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -175,7 +175,7 @@ func runPreAuthKeyCreate(args []string) {
 	user := fs.String("user", "", "Headscale user to create the key for")
 	reusable := fs.Bool("reusable", false, "Allow the key to be used multiple times")
 	ephemeral := fs.Bool("ephemeral", false, "Create nodes as ephemeral (auto-deleted when offline)")
-	expiration := fs.Duration("expiration", 0, "Key lifetime (e.g. 24h, 30d). 0 = server default")
+	expiration := fs.Duration("expiration", 0, "Key lifetime (e.g. 24h, 720h). 0 = server default")
 	parseAndMerge(fs, cfg, args)
 	require(cfg.HeadscaleURL != "", "headscale-url is required")
 	require(cfg.HeadscaleAPIKey != "", "headscale-key is required")
