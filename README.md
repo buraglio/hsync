@@ -1,6 +1,6 @@
 # hsync
 
-**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It syncs Headscale node IP addresses to DNS — either [Cloudflare](https://www.cloudflare.com/) or a BIND-format zone file. It keeps `A` and `AAAA` records for your Headscale nodes up to date automatically, supports multiple zones, and can run as a one-shot command, a polling daemon, or a webhook-driven HTTP service.
+**hsync** is a tool for managing [Headscale](https://github.com/juanfont/headscale) instances. It syncs Headscale node IP addresses to DNS — either [Cloudflare](https://www.cloudflare.com/) or a BIND-format zone file — and provides direct management of nodes, users, pre-auth keys, and subnet routes via the Headscale API.
 
 ## Features
 
@@ -19,6 +19,10 @@
 - **Config file** — JSON or YAML; all flags can be set there; CLI flags always win
 - **Compiled-in defaults** — embed URLs and API keys at build time with `-ldflags` for zero-config deployments
 - Node filtering by online status (`--online-only`) and Headscale user (`--user`)
+- **Node management** — rename nodes, set ACL tags directly via the Headscale API
+- **User management** — list, create, delete, and rename Headscale users
+- **Pre-auth key management** — list, create (reusable/ephemeral, with expiration), and expire pre-auth keys
+- **Route management** — list, enable, disable, and delete subnet routes
 
 ## Installation
 
@@ -53,6 +57,34 @@ At runtime, CLI flags override compiled defaults, which in turn override environ
 ```sh
 # List all nodes
 hsync list \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX
+
+# Rename a node
+hsync rename \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX \
+  --node old-name --new-name new-name
+
+# Set ACL tags on a node
+hsync node-tag \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX \
+  --node gateway --tag tag:prod --tag tag:web
+
+# List users
+hsync users list \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX
+
+# Create a pre-auth key (reusable, expires in 24h)
+hsync preauthkey create \
+  --headscale-url https://hs.example.com \
+  --headscale-key hskey-api-XXXXXXXX \
+  --user alice --reusable --expiration 24h
+
+# List subnet routes
+hsync routes list \
   --headscale-url https://hs.example.com \
   --headscale-key hskey-api-XXXXXXXX
 
@@ -113,6 +145,209 @@ Prints a table of all Headscale nodes with their IPv4, IPv6, user, and online st
 | `--online` | false | Only show currently-online nodes |
 | `--user <name>` | — | Filter to a specific Headscale user |
 | `--json` | false | Output as JSON array |
+
+---
+
+### `rename` — rename a node
+
+```
+hsync rename --node <current-name> --new-name <name>
+```
+
+Renames a Headscale node by its current `givenName` or hostname. The node is looked up by name and renamed via the Headscale API.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--node <name>` | — | Current node name (givenName or hostname) |
+| `--new-name <name>` | — | New name to assign |
+| `--json` | false | Output updated node as JSON |
+
+```sh
+hsync rename --node laptop-alice --new-name alices-laptop
+```
+
+---
+
+### `node-tag` — set ACL tags on a node
+
+```
+hsync node-tag --node <name> [--tag tag:value ...] [--clear]
+```
+
+Replaces the ACL tag set on a Headscale node. Tags must follow the `tag:value` format required by Headscale ACL policies. Use `--clear` to remove all tags.
+
+| Flag | Default | Description |
+|---|---|---|
+| `--node <name>` | — | Node name (givenName or hostname) |
+| `--tag <tag:value>` | — | ACL tag to set (repeatable; replaces all existing tags) |
+| `--clear` | false | Remove all ACL tags from the node |
+| `--json` | false | Output updated node as JSON |
+
+```sh
+# Set tags
+hsync node-tag --node gateway --tag tag:prod --tag tag:egress
+
+# Remove all tags
+hsync node-tag --node gateway --clear
+```
+
+---
+
+### `users` — manage Headscale users
+
+```
+hsync users <list|create|delete|rename> [flags]
+```
+
+Full CRUD for Headscale users (namespaces).
+
+#### `users list`
+
+Prints all users with their ID and creation time.
+
+```sh
+hsync users list
+hsync users list --json
+```
+
+#### `users create`
+
+```sh
+hsync users create --name alice
+```
+
+| Flag | Description |
+|---|---|
+| `--name <name>` | Username to create |
+
+#### `users delete`
+
+```sh
+hsync users delete --name alice
+```
+
+| Flag | Description |
+|---|---|
+| `--name <name>` | Username to delete |
+
+#### `users rename`
+
+```sh
+hsync users rename --name alice --new-name aliceb
+```
+
+| Flag | Description |
+|---|---|
+| `--name <name>` | Current username |
+| `--new-name <name>` | New username |
+
+---
+
+### `preauthkey` — manage pre-authentication keys
+
+```
+hsync preauthkey <list|create|expire> [flags]
+```
+
+Manage Headscale pre-auth keys used for node registration.
+
+#### `preauthkey list`
+
+```sh
+hsync preauthkey list
+hsync preauthkey list --user alice
+hsync preauthkey list --json
+```
+
+| Flag | Description |
+|---|---|
+| `--user <name>` | Filter keys by username (optional) |
+
+Output columns: ID, USER, KEY, REUSABLE, EPHEMERAL, USED, EXPIRATION
+
+#### `preauthkey create`
+
+```sh
+# Single-use key for alice, expires in 24 hours
+hsync preauthkey create --user alice --expiration 24h
+
+# Reusable ephemeral key (nodes auto-deleted when offline)
+hsync preauthkey create --user alice --reusable --ephemeral
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--user <name>` | — | Headscale user to create the key for |
+| `--reusable` | false | Allow the key to be used multiple times |
+| `--ephemeral` | false | Nodes registered with this key are ephemeral |
+| `--expiration <duration>` | 0 (server default) | Key lifetime (e.g. `24h`, `720h`) |
+
+#### `preauthkey expire`
+
+Immediately invalidates a key so it can no longer be used for registration.
+
+```sh
+hsync preauthkey expire --user alice --key <full-key-value>
+```
+
+| Flag | Description |
+|---|---|
+| `--user <name>` | Username that owns the key |
+| `--key <key>` | Full key value to expire |
+
+---
+
+### `routes` — manage subnet routes
+
+```
+hsync routes <list|enable|disable|delete> [flags]
+```
+
+Manage advertised subnet routes from Headscale subnet routers.
+
+#### `routes list`
+
+```sh
+hsync routes list
+hsync routes list --node gateway
+hsync routes list --json
+```
+
+| Flag | Description |
+|---|---|
+| `--node <name>` | Filter routes to a specific node (optional) |
+
+Output columns: ID, NODE, PREFIX, ADVERTISED, ENABLED, PRIMARY
+
+#### `routes enable`
+
+```sh
+hsync routes enable --route-id 5
+```
+
+| Flag | Description |
+|---|---|
+| `--route-id <id>` | Route ID to enable |
+
+#### `routes disable`
+
+```sh
+hsync routes disable --route-id 5
+```
+
+| Flag | Description |
+|---|---|
+| `--route-id <id>` | Route ID to disable |
+
+#### `routes delete`
+
+```sh
+hsync routes delete --route-id 5
+```
+
+| Flag | Description |
+|---|---|
+| `--route-id <id>` | Route ID to delete |
 
 ---
 
@@ -350,7 +585,7 @@ In this example:
 
 ## DNS Record Naming
 
-By default hsync uses the **Headscale-configured name** (`givenName`) for each node — the name an admin has set via `headscale nodes rename`. If no configured name is set, it falls back to the machine hostname (`name`).
+By default hsync uses the **Headscale-configured name** (`givenName`) for each node — the name an admin has set via `headscale nodes rename` or `hsync rename`. If no configured name is set, it falls back to the machine hostname (`name`).
 
 To always use the machine hostname instead:
 
@@ -559,7 +794,7 @@ Generate a key in headscale:
 headscale apikeys create --expiration 9999d
 ```
 
-The key needs read access to the node list (`GET /api/v1/node`).
+The key needs read access to nodes and write access for management commands (rename, tag, user, preauthkey, routes operations).
 
 ---
 
