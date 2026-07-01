@@ -58,6 +58,8 @@ func main() {
 		runAPIKey(os.Args[2:])
 	case "policy":
 		runPolicy(os.Args[2:])
+	case "completion":
+		runCompletion(os.Args[2:])
 	case "version", "--version", "-version":
 		fmt.Printf("hsync %s\n", version)
 	case "help", "--help", "-help", "-h":
@@ -89,6 +91,7 @@ Commands:
   node        Manage Headscale nodes (sub-commands: show, delete, expire, move)
   apikey      Manage Headscale API keys (sub-commands: list, create, expire)
   policy      Manage Headscale ACL policy (sub-commands: get, set)
+  completion  Generate shell completion scripts (bash, zsh, fish)
   version     Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
