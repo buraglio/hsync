@@ -50,6 +50,8 @@ func main() {
 		runUsers(os.Args[2:])
 	case "preauthkey":
 		runPreAuthKey(os.Args[2:])
+	case "routes":
+		runRoutes(os.Args[2:])
 	case "version", "--version", "-version":
 		fmt.Printf("hsync %s\n", version)
 	case "help", "--help", "-help", "-h":
@@ -77,6 +79,7 @@ Commands:
   node-tag  Set ACL tags on a Headscale node (--node <name> --tag tag:prod)
   users       Manage Headscale users (sub-commands: list, create, delete, rename)
   preauthkey  Manage Headscale pre-auth keys (sub-commands: list, create, expire)
+  routes      Manage Headscale subnet routes (sub-commands: list, enable, disable, delete)
   version     Print version information
 
 Run 'hsync <command> -help' for command-specific flags.
